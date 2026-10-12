@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SYSTEM WYDZIAŁU ŚLEDCZEGO</title>
+    <!-- Biblioteka jsPDF do generowania akt w PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --term-green: #4af626;
+            --term-dark: #050505;
+            --term-red: #ff2a2a;
+            --term-yellow: #f6d326;
+            --term-white: #e0e0e0;
+            --term-dim: rgba(74, 246, 38, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: #000; color: var(--term-green); font-family: 'Share Tech Mono', monospace;
+            overflow: hidden; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; perspective: 1000px;
+        }
+
+        .crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%; pointer-events: none; z-index: 100; box-shadow: inset 0 0 100px rgba(0,0,0,0.95);
+        }
+
+        .crt-curve {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            border: 15px solid #030303; border-radius: 20px; pointer-events: none; z-index: 101; box-shadow: inset 0 0 40px rgba(74, 246, 38, 0.15);
+        }
+
+        .global-glitch { animation: screen-glitch-anim 0.15s cubic-bezier(.25, .46, .45, .94) both infinite; filter: drop-shadow(4px 0px 0px rgba(255,0,0,0.6)) drop-shadow(-4px 0px 0px rgba(0,0,255,0.6)); }
+        .heavy-glitch { animation: heavy-glitch-anim 0.1s infinite; filter: contrast(200%) saturate(200%) drop-shadow(5px 0px 0px red) drop-shadow(-5px 0px 0px blue) !important; }
+        .fatal-crash { animation: fatal-crash-anim 0.1s infinite !important; filter: invert(1) contrast(300%) hue-rotate(90deg) !important; transform: scale(1.1) skewX(10deg); }
+
+        .text-heavy-glitch {
+            display: inline-block;
+            animation: text-glitch-anim 0.1s infinite;
+            filter: drop-shadow(2px 0px 0px #fff) drop-shadow(-2px 0px 0px #000);
+        }
+
+        @keyframes screen-glitch-anim { 0% { transform: translate(0) skew(0deg); } 20% { transform: translate(-5px, 3px) skew(-3deg); } 40% { transform: translate(5px, -3px) skew(3deg); } 60% { transform: translate(-3px, 5px) skew(-2deg); } 80% { transform: translate(3px, -5px) skew(2deg); } 100% { transform: translate(0) skew(0deg); } }
+        @keyframes heavy-glitch-anim { 0% { transform: translate(-10px, 5px) skew(5deg) scale(1.02); } 25% { transform: translate(10px, -5px) skew(-5deg) scale(0.98); } 50% { transform: translate(-5px, -10px) skew(10deg) scale(1.05); } 75% { transform: translate(5px, 10px) skew(-10deg) scale(0.95); } 100% { transform: translate(0) skew(0deg) scale(1); } }
+        @keyframes fatal-crash-anim { 0% { transform: translate(-10px, 10px) skew(15deg) scale(1.05); filter: invert(1); } 25% { transform: translate(10px, -10px) skew(-15deg) scale(1.1); filter: invert(0) brightness(500%); } 50% { transform: translate(-15px, -5px) skew(20deg) scale(0.9); filter: hue-rotate(180deg); } 75% { transform: translate(15px, 5px) skew(-20deg) scale(1.2); filter: sepia(100%) saturate(1000%); } 100% { transform: translate(0) skew(0deg) scale(1); filter: invert(1); } }
+        @keyframes text-glitch-anim { 0% { transform: translate(-2px, 1px) skew(2deg); } 25% { transform: translate(2px, -1px) skew(-2deg); } 50% { transform: translate(-1px, -2px) skew(4deg); } 75% { transform: translate(1px, 2px) skew(-4deg); } 100% { transform: translate(0) skew(0deg); } }
+
+        .txt-red { color: var(--term-red) !important; text-shadow: 0 0 5px var(--term-red); font-weight: bold; }
+        .txt-yellow { color: var(--term-yellow); text-shadow: 0 0 5px var(--term-yellow); }
+        .txt-white { color: var(--term-white); text-shadow: 0 0 3px var(--term-white); }
+        .txt-blink { animation: blink 1s step-end infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        #power-screen { position: absolute; z-index: 50; display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; }
+        #power-btn { background: transparent; color: var(--term-green); border: 2px solid var(--term-green); padding: 20px 40px; font-size: 2rem; font-family: inherit; cursor: pointer; text-transform: uppercase; letter-spacing: 5px; box-shadow: 0 0 15px var(--term-green) inset, 0 0 15px var(--term-green); transition: all 0.2s; position: relative; overflow: hidden; }
+        #power-btn:hover { background: var(--term-green); color: var(--term-dark); }
+        #power-btn:active { transform: scale(0.95); }
+
+        #terminal { display: none; width: 100%; max-width: 900px; height: 100vh; padding: 40px 20px; flex-direction: column; overflow-y: auto; overflow-x: hidden; z-index: 10; position: relative; font-size: 1.15rem; line-height: 1.6; text-shadow: 0 0 4px var(--term-green); }
+        #terminal::-webkit-scrollbar { width: 8px; } #terminal::-webkit-scrollbar-track { background: #000; } #terminal::-webkit-scrollbar-thumb { background: var(--term-dim); }
+
+        #cmd-line { display: none; margin-top: 15px; align-items: center; }
+        #cmd-prefix { color: var(--term-yellow); margin-right: 10px; font-weight: bold; }
+        #cmd-input { background: transparent; border: none; color: var(--term-green); font-family: inherit; font-size: 1.15rem; flex-grow: 1; outline: none; text-transform: uppercase; text-shadow: 0 0 4px var(--term-green); }
+
+        #post-crash-screen { display: none; position: absolute; z-index: 200; width: 100%; height: 100%; background: #000; justify-content: center; align-items: center; flex-direction: column; opacity: 0; transition: opacity 3s ease-in; }
+        .pdf-btn { background: #111; color: #fff; border: 1px solid #fff; padding: 15px 30px; font-family: inherit; font-size: 1.2rem; cursor: pointer; text-transform: uppercase; letter-spacing: 3px; transition: 0.3s; animation: pulse 2s infinite; }
+        .pdf-btn:hover { background: #fff; color: #000; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); } 70% { box-shadow: 0 0 0 15px rgba(255,255,255,0); } 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); } }
+
+        .interactive-ui { display: none; border: 1px solid var(--term-green); background: rgba(0,255,0,0.03); padding: 20px; margin: 20px 0; border-radius: 5px; box-shadow: inset 0 0 30px rgba(74,246,38,0.05); }
+        .btn-action { background: var(--term-dark); color: var(--term-green); border: 1px solid var(--term-green); padding: 10px 20px; font-family: inherit; font-size: 1.1rem; cursor: pointer; text-transform: uppercase; margin-top: 15px; width: 100%; transition: 0.2s; }
+        .btn-action:hover { background: var(--term-green); color: var(--term-dark); box-shadow: 0 0 10px var(--term-green); }
+        .btn-action:active { transform: scale(0.98); }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; margin: 15px 0; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 22px; width: 12px; background: var(--term-green); cursor: pointer; margin-top: -9px; box-shadow: 0 0 5px var(--term-green); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: var(--term-dim); }
+        
+        canvas { width: 100%; height: 120px; background: #080808; border: 1px dashed var(--term-dim); margin-bottom: 10px; image-rendering: pixelated; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.95rem; color: var(--term-white); }
+
+        .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 280px; margin: 0 auto; }
+        .grid-node { aspect-ratio: 1; border: 2px solid var(--term-dim); display: flex; justify-content: center; align-items: center; font-size: 1.5rem; cursor: pointer; transition: 0.1s; color: var(--term-dim); }
+        .grid-node.active { background: var(--term-yellow); color: var(--term-dark); border-color: var(--term-yellow); box-shadow: 0 0 20px var(--term-yellow); }
+        .grid-node.wrong { background: var(--term-red); color: #fff; border-color: var(--term-red); box-shadow: 0 0 20px var(--term-red); }
+
+        .ring-container { position: relative; width: 180px; height: 180px; margin: 0 auto 20px auto; }
+        .ring-base, .ring-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; }
+        .ring-base { border: 12px dashed var(--term-red); border-top-color: transparent; border-right-color: transparent; opacity: 0.5; filter: blur(2px); }
+        .ring-layer { border: 12px solid var(--term-green); border-bottom-color: transparent; border-left-color: transparent; border-style: dotted solid; transition: transform 0.1s linear; }
+    </style>
+</head>
+<body>
+    <div class="crt-overlay"></div>
+    <div class="crt-curve"></div>
+
+    <div id="power-screen">
+        <button id="power-btn">SYSTEM BOOT</button>
+    </div>
+
+    <div id="terminal">
+        <div id="output"></div>
+        
+        <div id="ui-puzzle-1" class="interactive-ui">
+            <div style="text-align:center; margin-bottom:10px;" class="txt-yellow">> DEKODER ZAKŁÓCEŃ FALOWYCH <</div>
+            <canvas id="waveCanvas" width="600" height="150"></canvas>
+            <div class="slider-label"><span>CZĘSTOTLIWOŚĆ (FREQ)</span><span id="val-freq">50</span></div>
+            <input type="range" id="slider-freq" min="10" max="90" value="50">
+            <div class="slider-label"><span>AMPLITUDA (AMP)</span><span id="val-amp">50</span></div>
+            <input type="range" id="slider-amp" min="10" max="90" value="50">
+            <button class="btn-action" onclick="checkPuzzle1()">[ SYNCHRONIZUJ ]</button>
+        </div>
+
+        <div id="ui-puzzle-3" class="interactive-ui">
+            <div style="text-align:center; margin-bottom:20px;" class="txt-yellow">> ZAPORA AKTYWNA. ODTWÓRZ KOD. <</div>
+            <div class="grid-container" id="grid-nodes"></div>
+            <button class="btn-action" id="btn-firewall-start" onclick="startFirewallSequence()">[ INICJUJ SEKWENCJĘ ]</button>
+        </div>
+
+        <div id="ui-puzzle-4" class="interactive-ui">
+            <div style="text-align:center; margin-bottom:20px;" class="txt-yellow">> KALIBRACJA FRAGMENTU DANYCH <</div>
+            <div class="ring-container">
+                <div class="ring-base"></div>
+                <div class="ring-layer" id="ring-dynamic"></div>
+            </div>
+            <input type="range" id="slider-ring" min="0" max="360" value="0">
+            <button class="btn-action" onclick="checkPuzzle4()">[ DEKRYPTAŻ ]</button>
+        </div>
+
+        <div id="cmd-line">
+            <span id="cmd-prefix">ROOT@WSN:~\$</span>
+            <input type="text" id="cmd-input" autocomplete="off" spellcheck="false" />
+        </div>
+
+        <div id="cursor-anchor" style="height: 20px;"></div>
+    </div>
+
+    <div id="post-crash-screen">
+        <button class="pdf-btn" onclick="downloadPDF()">POBIERZ AKTA OPERACYJNE (PDF)</button>
+    </div>
+
+    <script>
+        const MISSION_LOCATION = "Gdańsk, Po Schodkach 22";
+        const MISSION_DATE = "Sobota, 31 Października 2026, godz. 19:00";
+
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(freq, type, duration, vol = 0.1) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            if(type === 'square') osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + duration);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playNoise(duration, vol=0.2) {
+            if (!audioCtx) return;
+            const bufferSize = audioCtx.sampleRate * duration;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1; 
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            noise.connect(gain); gain.connect(audioCtx.destination);
+            noise.start();
+        }
+
+        function playType(fast=false) { playSound(fast? 300 : 150 + Math.random()*50, fast?'sine':'square', 0.03, 0.05); }
+        function playError() { playSound(80, 'sawtooth', 0.5, 0.3); triggerGlobalGlitch(); }
+        function playSuccess() { playSound(600, 'sine', 0.1, 0.1); setTimeout(() => playSound(1200, 'sine', 0.2, 0.1), 100); }
+        function playFatalCrash() { playSound(50, 'sawtooth', 2, 0.5); playSound(2000, 'square', 1.5, 0.2); playNoise(2.5, 0.8); }
+
+        function triggerGlobalGlitch() {
+            document.body.classList.add('global-glitch');
+            setTimeout(() => document.body.classList.remove('global-glitch'), 200);
+        }
+        setInterval(() => { if(Math.random() > 0.94 && terminal.style.display === 'flex' && !document.body.classList.contains('heavy-glitch')) triggerGlobalGlitch(); }, 1500);
+
+        const output = document.getElementById('output');
+        const terminal = document.getElementById('terminal');
+        const cmdLine = document.getElementById('cmd-line');
+        const cmdInput = document.getElementById('cmd-input');
+        
+        let currentState = 'NONE'; 
+
+        function forceScroll() { terminal.scrollTop = terminal.scrollHeight; }
+
+        async function printLines(lines, delay = 300, typingSpeed = "normal") {
+            for (let line of lines) { await typeLine(line, typingSpeed); await sleep(delay); }
+        }
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function typeLine(htmlContent, speedType = "normal") {
+            return new Promise(resolve => {
+                const div = document.createElement('div');
+                div.style.marginBottom = '5px';
+                output.appendChild(div);
+                
+                let i = 0; let isTag = false; let currentHTML = '';
+                function typeChar() {
+                    if (i < htmlContent.length) {
+                        let char = htmlContent.charAt(i);
+                        currentHTML += char;
+                        
+                        if (char === '<') isTag = true;
+                        if (char === '>') isTag = false;
+                        
+                        if (isTag) {
+                            i++; typeChar();
+                        } else {
+                            div.innerHTML = currentHTML;
+                            if (char !== ' ') playType(speedType==="fast");
+                            i++; forceScroll();
+                            
+                            let speed = 20;
+                            if(speedType === "fast") speed = 8;
+                            if(speedType === "slow") speed = 60;
+                            setTimeout(typeChar, speed);
+                        }
+                    } else { resolve(); }
+                }
+                typeChar();
+            });
+        }
+
+        function appendUI(id) {
+            const ui = document.getElementById(id);
+            ui.style.display = 'block';
+            output.appendChild(ui);
+            forceScroll();
+        }
+
+        function showCmd(stateName) {
+            currentState = stateName;
+            cmdLine.style.display = 'flex';
+            output.appendChild(cmdLine);
+            cmdInput.value = '';
+            cmdInput.focus();
+            forceScroll();
+        }
+
+        function hideCmd() {
+            cmdLine.style.display = 'none';
+        }
+
+        cmdInput.addEventListener('keydown', async function(e) {
+            if (e.key === 'Enter') {
+                const val = this.value.trim().toUpperCase();
+                if(!val) return;
+                hideCmd();
+                
+                let echoDiv = document.createElement('div');
+                echoDiv.innerHTML = `<span class="txt-yellow">ROOT@WSN:~$</span> ${val}`;
+                output.appendChild(echoDiv);
+                forceScroll();
+
+                if (currentState === 'AWAIT_AUDIO_CMD') {
+                    if (val === 'PLAY_AUDIO') {
+                        await playMelody();
+                        await sleep(500);
+                        await typeLine("> ODTWARZANIE ZAKOŃCZONE. WPISZ 4-CYFROWY KOD DŹWIĘKÓW (np. 1234):", "fast");
+                        showCmd('AWAIT_AUDIO_ANSWER');
+                    } else {
+                        playError();
+                        await typeLine("<span class='txt-red'>Nieznana komenda. Wymagane: PLAY_AUDIO</span>", "fast");
+                        showCmd('AWAIT_AUDIO_CMD');
+                    }
+                } 
+                else if (currentState === 'AWAIT_AUDIO_ANSWER') {
+                    if (val === 'PLAY_AUDIO') { 
+                        await playMelody();
+                        showCmd('AWAIT_AUDIO_ANSWER');
+                    }
+                    else if (val === '1423') {
+                        playSuccess();
+                        await typeLine("<span class='txt-yellow'>> KOD ZAAKCEPTOWANY. ODBLOKOWYWANIE ZAPORY...</span>", "fast");
+                        await sleep(1000);
+                        startPuzzle3();
+                    } else {
+                        playError();
+                        await typeLine("<span class='txt-red'>> BŁĘDNY KOD. SPRÓBUJ PONOWNIE (wpisz PLAY_AUDIO aby odsłuchać):</span>", "fast");
+                        showCmd('AWAIT_AUDIO_ANSWER');
+                    }
+                }
+            }
+        });
+
+        document.body.addEventListener('click', () => { if (cmdLine.style.display !== 'none') cmdInput.focus(); });
+
+        document.getElementById('power-btn').addEventListener('click', async () => {
+            initAudio();
+            document.getElementById('power-screen').style.display = 'none';
+            terminal.style.display = 'flex';
+            
+            for(let i=0; i<30; i++) {
+                let div = document.createElement('div'); 
+                div.style.color = 'var(--term-dim)'; div.style.fontSize = '0.9rem'; 
+                div.innerText = `MEM_CHK: 0x${Math.floor(Math.random()*16777215).toString(16).toUpperCase().padStart(8, '0')} [ OK ]`;
+                output.appendChild(div); forceScroll(); playType(true);
+                await sleep(Math.random() * 20 + 10); 
+            }
+
+            const bootCmds = [
+                "Initializing Boot Sequence v.9.9.4...",
+                "Loading System Kernel v5.15.0-generic...",
+                "Mounting VFS: Mounted root (ext4 filesystem) readonly.",
+                "[    0.000000] Linux version 5.15.0 (root@wsn) (gcc version 11.2.0)",
+                "[    0.043212] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'",
+                "[    0.141231] ACPI: Core revision 20261025",
+                "[    0.852312] Mount-cache hash table entries: 131072",
+                "[    1.521312] usb 1-1: new high-speed USB device number 2 using xhci_hcd",
+                "Loading cryptographic modules [ OK ]",
+                "Checking encrypted volumes...",
+                "Decrypting shadow partition /dev/sda1 [ OK ]",
+                "Mounting secure volumes [ OK ]",
+                "Starting Network Interfaces [ OK ]",
+                "Initializing secure uplink routing...",
+                "Bypassing standard ISP firewalls...",
+                "Establishing Node-to-Node tunneling...",
+                "Allocating memory for stealth execution [ OK ]",
+                "Injecting rootkit masking protocols [ OK ]",
+                "System initialization complete."
+            ];
+
+            for(let cmd of bootCmds) {
+                let div = document.createElement('div'); div.style.color = 'var(--term-dim)'; div.style.fontSize = '0.95rem'; div.innerText = cmd;
+                output.appendChild(div); forceScroll(); playType(true);
+                await sleep(Math.random() * 60 + 20); 
+            }
+
+            let warnDiv = document.createElement('div'); warnDiv.style.color = 'var(--term-yellow)'; warnDiv.innerText = "\n>> WARNING: UNAUTHORIZED ACCESS DETECTED <<";
+            output.appendChild(warnDiv); forceScroll(); playError(); await sleep(1000);
+
+            document.body.classList.add('heavy-glitch'); playNoise(1.5, 0.4); playSound(150, 'sawtooth', 1.5, 0.3);
+            for(let i=0; i<60; i++) {
+                let div = document.createElement('div'); div.style.color = Math.random() > 0.5 ? 'var(--term-green)' : 'var(--term-red)'; div.style.fontSize = '0.9rem'; div.innerText = `[${(Math.random()*1000).toFixed(4)}] KERNEL_PANIC_BYPASS: 0x${Math.random().toString(16).substring(2, 10).toUpperCase()} - OVERRIDE`;
+                output.appendChild(div); forceScroll(); if(i % 2 === 0) await sleep(20);
+            }
+            
+            document.body.classList.remove('heavy-glitch'); output.innerHTML = ''; await sleep(2500); 
+
+            playSuccess();
+            await printLines([
+                "<span class='txt-yellow'>SYSTEM STABILNY. BEZPIECZNE POŁĄCZENIE NAWIĄZANE.</span>", "--------------------------------------------------",
+                "WITAJ W BAZIE WYDZIAŁU ŚLEDCZEGO.", " ",
+                "Zidentyfikowaliśmy miejsce <span class='txt-red'>ZBRODNI</span>.",
+                "Zanim przekażemy Ci koordynaty akcji w terenie, system musi",
+                "potwierdzić Twoje uprawnienia operacyjne.", " ",
+                "<span class='txt-white'>ROZPOCZYNAM PROTOKÓŁ WERYFIKACYJNY...</span>"
+            ], 400);
+            await sleep(1000);
+            startPuzzle1();
+        });
+
+        let p1_targetFreq = 68; let p1_targetAmp = 42; let p1_reqAnim;
+        async function startPuzzle1() {
+            await printLines(["<br>", "<span class='txt-white'>[ETAP 1/4]: NASŁUCH RADIOWY</span>", "Przechwycono transmisję mordercy. Zestrojenie fal pozwoli odzyskać dane."], 100, "fast");
+            appendUI('ui-puzzle-1');
+            const canvas = document.getElementById('waveCanvas'); const ctx = canvas.getContext('2d');
+            const freqSlider = document.getElementById('slider-freq'); const ampSlider = document.getElementById('slider-amp');
+            const w = canvas.width; const h = canvas.height;
+
+            function drawWaves() {
+                ctx.clearRect(0, 0, w, h); ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.strokeStyle = 'rgba(255, 42, 42, 0.8)';
+                for(let i=0; i<w; i++) ctx.lineTo(i, h/2 + Math.sin(i * (p1_targetFreq/1000)) * p1_targetAmp);
+                ctx.stroke();
+                let uFreq = freqSlider.value; let uAmp = ampSlider.value;
+                document.getElementById('val-freq').innerText = uFreq; document.getElementById('val-amp').innerText = uAmp;
+                ctx.beginPath(); ctx.strokeStyle = '#4af626';
+                for(let i=0; i<w; i++) ctx.lineTo(i, h/2 + Math.sin(i * (uFreq/1000)) * uAmp);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                for(let i=0; i<40; i++) ctx.fillRect(Math.random()*w, Math.random()*h, 2, 2);
+                p1_reqAnim = requestAnimationFrame(drawWaves);
+            }
+            drawWaves();
+            freqSlider.addEventListener('input', () => playSound(200, 'sine', 0.05));
+            ampSlider.addEventListener('input', () => playSound(200, 'sine', 0.05));
+        }
+
+        async function checkPuzzle1() {
+            if (Math.abs(document.getElementById('slider-freq').value - p1_targetFreq) <= 4 && Math.abs(document.getElementById('slider-amp').value - p1_targetAmp) <= 4) {
+                cancelAnimationFrame(p1_reqAnim); playSuccess();
+                document.getElementById('ui-puzzle-1').style.opacity = '0.3'; document.getElementById('ui-puzzle-1').style.pointerEvents = 'none';
+                await typeLine("<span class='txt-yellow'>> ZESTROJENIE POPRAWNE. PAKIET AUDIO POBRANY.</span>", "fast");
+                await sleep(800); startPuzzle2Audio();
+            } else { playError(); await typeLine("<span class='txt-red'>> BŁĄD. SYGNAŁ NIESTABILNY.</span>", "fast"); }
+        }
+
+        async function startPuzzle2Audio() {
+            await printLines([
+                "<br>", "<span class='txt-white'>[ETAP 2/4]: ANALIZA ZASZYFROWANEGO DŹWIĘKU</span>",
+                "Otrzymany plik zawiera klucz tonowy zabezpieczający dostęp do firewalla.",
+                "Istnieją 4 poziomy częstotliwości (od 1 - najniższej do 4 - najwyższej).",
+                "Wpisz komendę <span class='txt-yellow'>PLAY_AUDIO</span> aby odsłuchać."
+            ], 100, "fast");
+            showCmd('AWAIT_AUDIO_CMD');
+        }
+
+        async function playMelody() {
+            const tones = [300, 900, 500, 700]; 
+            for(let i=0; i<tones.length; i++) {
+                playSound(tones[i], 'sine', 0.4, 0.2);
+                await sleep(600);
+            }
+        }
+
+        let p3_seq = []; let p3_step = 0; let p3_active = false;
+        async function startPuzzle3() {
+            await printLines(["<br>", "<span class='txt-white'>[ETAP 3/4]: ZAPORA SIECIOWA (FIREWALL)</span>", "Wykryto wojskowy firewall. Musisz idealnie powtórzyć skaczący kod ominięcia."], 100, "fast");
+            const grid = document.getElementById('grid-nodes'); grid.innerHTML = '';
+            for(let i=0; i<9; i++) {
+                let div = document.createElement('div'); div.className = 'grid-node'; div.innerText = '0x'+i;
+                div.onclick = () => clickNode(i, div); grid.appendChild(div);
+            }
+            appendUI('ui-puzzle-3');
+        }
+
+        async function startFirewallSequence() {
+            if(p3_active) return;
+            document.getElementById('btn-firewall-start').style.display = 'none';
+            p3_active = true; p3_seq = []; p3_step = 0;
+            for(let i=0; i<5; i++) p3_seq.push(Math.floor(Math.random()*9));
+            await sleep(400);
+            const nodes = document.querySelectorAll('.grid-node');
+            for(let i=0; i<p3_seq.length; i++) {
+                let idx = p3_seq[i]; nodes[idx].classList.add('active'); playSound(800 + (idx*100), 'square', 0.1, 0.1);
+                await sleep(350); nodes[idx].classList.remove('active'); await sleep(150);
+            }
+        }
+
+        async function clickNode(i, node) {
+            if(!p3_active || p3_seq.length===0) return;
+            if(i === p3_seq[p3_step]) {
+                node.style.background = 'var(--term-yellow)'; node.style.color = '#000'; playSound(1200, 'sine', 0.05, 0.1);
+                setTimeout(() => { node.style.background='transparent'; node.style.color='var(--term-dim)'; }, 150);
+                p3_step++;
+                if(p3_step === p3_seq.length) {
+                    p3_active = false; playSuccess();
+                    document.getElementById('ui-puzzle-3').style.opacity = '0.3'; document.getElementById('ui-puzzle-3').style.pointerEvents = 'none';
+                    await typeLine("<span class='txt-yellow'>> ZAPORA PRZEŁAMANA.</span>", "fast");
+                    await sleep(800); startPuzzle4();
+                }
+            } else {
+                p3_active = false; node.classList.add('wrong'); playError();
+                setTimeout(() => node.classList.remove('wrong'), 400);
+                document.getElementById('btn-firewall-start').style.display = 'block'; document.getElementById('btn-firewall-start').innerText = "[ PONÓW PRÓBĘ ]";
+            }
+        }
+
+        let p4_target = Math.floor(Math.random() * 260) + 50;
+        async function startPuzzle4() {
+            await printLines(["<br>", "<span class='txt-white'>[ETAP 4/4]: BLOKADA BIOMETRYCZNA</span>", "Obróć uszkodzony zielony sektor tak, aby dopasować go do czerwonego tła."], 100, "fast");
+            document.querySelector('.ring-base').style.transform = `rotate(${p4_target}deg)`;
+            document.getElementById('slider-ring').addEventListener('input', (e) => {
+                document.getElementById('ring-dynamic').style.transform = `rotate(${e.target.value}deg)`;
+                playSound(100 + (e.target.value/2), 'sine', 0.02);
+            });
+            appendUI('ui-puzzle-4');
+        }
+
+        async function checkPuzzle4() {
+            if(Math.abs(document.getElementById('slider-ring').value - p4_target) <= 12) {
+                playSuccess();
+                document.getElementById('ui-puzzle-4').style.opacity = '0.3'; document.getElementById('ui-puzzle-4').style.pointerEvents = 'none';
+                await typeLine("<span class='txt-yellow'>> SEKTORY ZGODNE. AUTORYZACJA PEŁNA.</span>", "fast");
+                await sleep(1000); runFinale();
+            } else { playError(); await typeLine("<span class='txt-red'>> BŁĄD KALIBRACJI.</span>", "fast"); }
+        }
+
+        // --- FINAŁ I CRASH ---
+        async function runFinale() {
+            output.innerHTML = ''; 
+            playSuccess(); playSuccess();
+            await printLines(["<span class='txt-white'>ODKRYWANIE DANYCH OPERACYJNYCH...</span>", "--------------------------------------------------"], 200, "fast");
+            
+            await printLines([
+                "Gratulacje, Agencie.",
+                "Skoro to czytasz, przeszedłeś testy Wydziału. Jesteś nam potrzebny.", " ",
+                "Miejsce w które się udasz, to nie gra.",
+                "To rzeczywiste <span class='txt-red'>MIEJSCE ZBRODNI</span>. Musimy zabezpieczyć poszlaki i określić sprawcę.",
+                "Z informacji jakie posiadamy, pośród was mogą znajdować się <span class='txt-red'>KRETY</span>,.",
+                "jednak nie mamy infromacji kogo te pogłoski dotyczą.", " ",
+                "<span class='txt-yellow'>SZCZEGÓŁY OPERACJI [KRUK]:</span>", "------------------------------------------",
+                `LOKALIZACJA: <span class='txt-white'>${MISSION_LOCATION}</span>`,
+                `CZAS AKCJI: <span class='txt-white'>${MISSION_DATE}</span>`, " ",
+                "<span class='txt-yellow'>WYTYCZNE:</span>", "------------------------------------------",
+                "> Ubior cieply / przebranie cywilne. (nie rzucaj się w oczy).",
+                "> Obuwie sportowe/taktyczne (będziemy w terenie).",
+                "> Ekwipunek: Kamizelki odblaskowe (dostepne na terenie).", " "
+            ], 100);
+
+            // MROCZNA CISZA PRZED BURZĄ
+            await sleep(5500); 
+
+            // NAGŁE WŁAMANIE
+            playError();
+            document.body.classList.add('heavy-glitch');
+            await sleep(200);
+            document.body.classList.remove('heavy-glitch');
+
+            await printLines([
+                "<br>",
+                "<span class='txt-red txt-blink' style='font-size: 1.5rem; font-weight: 900; text-shadow: 0 0 10px red;'>> UWAGA: KRYTYCZNE NARUSZENIE SIECI <</span>",
+                "<span class='txt-red text-heavy-glitch'>KTOŚ ZLOKALIZOWAŁ TWOJE IP. ATAK NA TERMINAL ROZPOCZĘTY.</span>",
+                "<span class='txt-red'>PRZECHWYTYWANIE DANYCH... 14%... 49%... 88%...</span>"
+            ], 100, "fast");
+
+            await sleep(2000);
+            await printLines([
+                "<span class='txt-red'>WYMUSZAM PROTOKÓŁ ZNISZCZENIA WIADOMOŚCI:</span>", 
+                "<span class='txt-red'>3...</span>", 
+                "<span class='txt-red'>2...</span>", 
+                "<span class='txt-red'>1...</span>"
+            ], 800, "slow");
+            crashSystem();
+        }
+
+        function crashSystem() {
+            playFatalCrash(); document.body.classList.add('fatal-crash');
+            let spew = setInterval(() => {
+                let div = document.createElement('div'); div.style.color = Math.random() > 0.5 ? 'red' : 'white'; div.style.wordBreak = 'break-all';
+                div.innerText = "FATAL ERROR 0x" + Math.random().toString(36).substr(2, 50).toUpperCase();
+                output.appendChild(div); forceScroll();
+            }, 20);
+
+            setTimeout(() => {
+                clearInterval(spew); document.body.classList.remove('fatal-crash'); document.body.style.background = '#000';
+                terminal.style.display = 'none'; document.querySelector('.crt-overlay').style.display = 'none'; document.querySelector('.crt-curve').style.display = 'none';
+                setTimeout(() => { const postScreen = document.getElementById('post-crash-screen'); postScreen.style.display = 'flex'; void postScreen.offsetWidth; postScreen.style.opacity = '1'; }, 2000);
+            }, 2500); 
+        }
+
+        // --- ZOPTYMALIZOWANY GENERATOR PDF ---
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf; 
+            const doc = new jsPDF();
+            
+            // Funkcja pozbywająca się polskich znaków (zapobiega rozsypywaniu się czcionki Courier)
+            const n = (str) => {
+                const map = {'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z',
+                             'Ą':'A','Ć':'C','Ę':'E','Ł':'L','Ń':'N','Ó':'O','Ś':'S','Ź':'Z','Ż':'Z'};
+                return str.replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, m => map[m]);
+            };
+
+            doc.setFont("courier", "bold"); doc.setFontSize(22); doc.setTextColor(200, 0, 0); 
+            doc.text(n("AKTA SPRAWY: KRUK"), 20, 30);
+            
+            doc.setFont("courier", "normal"); doc.setFontSize(12); doc.setTextColor(0, 0, 0);
+            doc.text(n("STATUS: SCISLE TAJNE"), 20, 40); 
+            doc.text(n("WYDZIAL: SPRAWY NIEWYJASNIONE"), 20, 46);
+            
+            doc.line(20, 52, 190, 52);
+            
+            doc.setFont("courier", "bold"); doc.text(n("1. DANE ZGRUPOWANIA:"), 20, 65);
+            doc.setFont("courier", "normal"); 
+            doc.text(n(`MIEJSCE: ${MISSION_LOCATION}`), 25, 73); 
+            doc.text(n(`DATA: ${MISSION_DATE}`), 25, 80);
+            
+            doc.setFont("courier", "bold"); doc.text(n("2. WYTYCZNE OPERACYJNE:"), 20, 95);
+            doc.setFont("courier", "normal"); 
+            doc.text(n("- Ubior ciepły / przebranie cywilne."), 25, 103); 
+            doc.text(n("- Wygodne, odporne obuwie terenowe."), 25, 110); 
+            doc.text(n("- Wymagany ekwipunek: Kamizelki odblaskowe (dostępne na terenie)."), 25, 117);
+            
+            doc.setFont("courier", "bold"); doc.text(n("3. ZASADY BEZPIECZEŃSTWA:"), 20, 132);
+            doc.setFont("courier", "normal"); 
+            doc.text(n("- Pracujecie w zespole. Brak samodzielnych akcji."), 25, 140); 
+            doc.text(n("- Kazdy dowod to klucz do rozwiazania sprawy."), 25, 147); 
+            doc.text(n("- Kreci w zespole mogą próbować zatuszować dowody."), 25, 154);
+            
+            doc.setTextColor(150, 150, 150); doc.setFontSize(10); 
+            doc.text(n("Dokument wygenerowany automatycznie. Nie niszczyc."), 20, 280);
+            
+            doc.save("Akta_Wydzialu_Widmo.pdf");
+        }
+    </script>
+</body>
+</html>
