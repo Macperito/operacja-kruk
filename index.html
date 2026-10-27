@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SYSTEM WYDZIAŁU ŚLEDCZEGO - PORTAL OPERACYJNY</title>
-    <!-- Biblioteka jsPDF do generowania akt w PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
@@ -219,7 +217,7 @@
         function forceScroll() { terminal.scrollTop = terminal.scrollHeight; }
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-        // Wolniejszy, czytelny Typewriter (prędkość zwiększona z 15 do 35ms)
+        // Wolniejszy, czytelny Typewriter
         function typeLine(htmlContent, speed = 35) {
             return new Promise(resolve => {
                 const div = document.createElement('div');
@@ -299,6 +297,7 @@
             const player = PLAYERS_DATABASE[userInput];
 
             if (player && player.pass === passInput) {
+                player.login = userInput; // ZAPISANIE LOGINU DO OBIEKTU
                 playSound(600, 'sine', 0.1, 0.1);
                 setTimeout(() => playSound(1200, 'sine', 0.2, 0.1), 100);
                 triggerGlitch();
@@ -360,7 +359,7 @@
                     if (!isTag) {
                         div.innerHTML = currentHTML;
                         if (char !== ' ') playSound(150, 'square', 0.02, 0.02);
-                        await sleep(25); // Wolniejsze pisanie danych w karcie
+                        await sleep(25); 
                     }
                     i++;
                 }
@@ -369,7 +368,10 @@
             await appendInfoLine(`<div><span class='txt-yellow'>IMIĘ I NAZWISKO:</span> <span class='txt-white'>${p.name}</span></div>`);
             await appendInfoLine(`<div><span class='txt-yellow'>PRZYPISANA ROLA:</span> <span class='txt-red'>${p.role}</span></div>`);
             await appendInfoLine(`<div><span class='txt-yellow'>CHARAKTERYSTYKA:</span> ${p.bio}</div>`);
-            await appendInfoLine(`<div style="margin-top: 10px; border-top: 1px dashed var(--term-dim); padding-top: 8px;"><span class='txt-yellow'>TAJNE WYTYCZNE:</span> <span class='txt-white'>${p.secretMission}</span></div>`);
+            
+            if (p.secretMission) {
+                await appendInfoLine(`<div style="margin-top: 10px; border-top: 1px dashed var(--term-dim); padding-top: 8px;"><span class='txt-yellow'>TAJNE WYTYCZNE:</span> <span class='txt-white'>${p.secretMission}</span></div>`);
+            }
 
             await scanPromise;
 
@@ -410,80 +412,56 @@
             forceScroll();
         }
 
-        // Generowanie PDF
         function generatePDF(p) {
-            // Tworzymy ukryte okno z sformatowanymi aktami do wydruku/zapisu jako PDF
-            const printWindow = window.open('', '_blank');
+            // Zabezpieczenie na wypadek braku loginu
+            const userLogin = p.login ? p.login.toUpperCase() : "NIEZNANY";
+
+            // Tworzymy ukryty element iframe do drukowania na tej samej stronie
+            let printFrame = document.getElementById('print-iframe');
+            if (!printFrame) {
+                printFrame = document.createElement('iframe');
+                printFrame.id = 'print-iframe';
+                printFrame.style.display = 'none';
+                document.body.appendChild(printFrame);
+            }
+
+            const doc = printFrame.contentWindow.document;
+            doc.open();
+            doc.write('<!DOCTYPE html>');
+            doc.write('<html lang="pl">');
+            doc.write('<head>');
+            doc.write('<meta charset="UTF-8">');
+            doc.write('<title>Akta Operacyjne - ' + p.name + '</title>');
+            doc.write('<style>');
+            doc.write('body { background-color: #ffffff; color: #000000; font-family: monospace; padding: 40px; line-height: 1.6; }');
+            doc.write('h1 { font-size: 22px; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }');
+            doc.write('.section { margin-bottom: 20px; }');
+            doc.write('.label { font-weight: bold; color: #333; font-size: 14px; text-transform: uppercase; }');
+            doc.write('.value { font-size: 16px; margin-top: 5px; }');
+            doc.write('.footer { margin-top: 50px; font-size: 10px; color: #666; border-top: 1px dashed #999; padding-top: 10px; }');
+            doc.write('</style>');
+            doc.write('</head>');
+            doc.write('<body>');
+            doc.write('<h1>WYDZIAŁ ŚLEDCZY - AKTA OPERACYJNE</h1>');
+            doc.write('<div class="section"><div class="label">Wygenerowano dla agenta:</div><div class="value">' + p.name.toUpperCase() + ' (Login: ' + userLogin + ')</div></div>');
+            doc.write('<div class="section"><div class="label">Rola w operacji / Status:</div><div class="value">' + p.role + ' [Status: ' + p.status + ']</div></div>');
+            doc.write('<div class="section"><div class="label">Charakterystyka postaci:</div><div class="value">' + p.bio + '</div></div>');
             
-            const htmlContent = `
-                <!DOCTYPE html>
-                <html lang="pl">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Akta Operacyjne - ${p.name}</title>
-                    <style>
-                        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-                        body {
-                            background-color: #ffffff;
-                            color: #000000;
-                            font-family: 'Share Tech Mono', monospace;
-                            padding: 40px;
-                            line-height: 1.6;
-                        }
-                        h1 { font-size: 22px; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
-                        .section { margin-bottom: 20px; }
-                        .label { font-weight: bold; color: #333; font-size: 14px; text-transform: uppercase; }
-                        .value { font-size: 16px; margin-top: 5px; }
-                        .footer { margin-top: 50px; font-size: 10px; color: #666; border-top: 1px dashed #999; padding-top: 10px; }
-                        @media print {
-                            body { padding: 0; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <h1>WYDZIAŁ ŚLEDCZY - AKTA OPERACYJNE</h1>
-                    
-                    <div class="section">
-                        <div class="label">Wygenerowano dla agenta:</div>
-                        <div class="value">${p.name.toUpperCase()} (Ksywka: ${p.login.toUpperCase()})</div>
-                    </div>
+            if (p.secretMission) {
+                doc.write('<div class="section"><div class="label">Tajne wytyczne dla gracza:</div><div class="value" style="font-weight: bold;">' + p.secretMission + '</div></div>');
+            }
 
-                    <div class="section">
-                        <div class="label">Rola w operacji / Status:</div>
-                        <div class="value">${p.role} [Status: ${p.status}]</div>
-                    </div>
+            doc.write('<div class="section"><div class="label">Dane lokalizacyjne:</div><div class="value">Miejsce: ' + MISSION_LOCATION + '<br>Czas: ' + MISSION_DATE + '</div></div>');
+            doc.write('<div class="footer">Dokument poufny. Wytworzony na potrzeby gry terenowej. System Operacyjny Kruk.</div>');
+            doc.write('</body>');
+            doc.write('</html>');
+            doc.close();
 
-                    <div class="section">
-                        <div class="label">Charakterystyka postaci:</div>
-                        <div class="value">${p.bio}</div>
-                    </div>
-
-                    ${p.secretMission ? `
-                    <div class="section">
-                        <div class="label">Tajne wytyczne dla gracza:</div>
-                        <div class="value" style="font-weight: bold;">${p.secretMission}</div>
-                    </div>` : ''}
-
-                    <div class="section">
-                        <div class="label">Dane lokalizacyjne:</div>
-                        <div class="value">Miejsce: ${MISSION_LOCATION}<br>Czas: ${MISSION_DATE}</div>
-                    </div>
-
-                    <div class="footer">
-                        Dokument poufny. Wytworzony na potrzeby gry terenowej. System Operacyjny Kruk.
-                    </div>
-
-                    <script>
-                        window.onload = function() {
-                            window.print();
-                        }
-                    </script>
-                </body>
-                </html>
-            `;
-
-            printWindow.document.write(htmlContent);
-            printWindow.document.close();
+            // Uruchomienie okna druku po wyrenderowaniu iframe
+            setTimeout(function() {
+                printFrame.contentWindow.focus();
+                printFrame.contentWindow.print();
+            }, 300);
         }
     </script>
 </body>
