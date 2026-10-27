@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SYSTEM WYDZIAŁU ŚLEDCZEGO - PORTAL OPERACYJNY</title>
+    <!-- Biblioteka jsPDF do generowania akt w PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --term-green: #4af626;
+            --term-dark: #050505;
+            --term-red: #ff2a2a;
+            --term-yellow: #f6d326;
+            --term-white: #e0e0e0;
+            --term-dim: rgba(74, 246, 38, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: #000; color: var(--term-green); font-family: 'Share Tech Mono', monospace;
+            overflow: hidden; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; perspective: 1000px;
+        }
+
+        .crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%; pointer-events: none; z-index: 100; box-shadow: inset 0 0 100px rgba(0,0,0,0.95);
+        }
+
+        .crt-curve {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            border: 15px solid #030303; border-radius: 20px; pointer-events: none; z-index: 101; box-shadow: inset 0 0 40px rgba(74, 246, 38, 0.15);
+        }
+
+        /* Efekty glitchu */
+        .global-glitch { animation: screen-glitch-anim 0.15s cubic-bezier(.25, .46, .45, .94) both; filter: drop-shadow(4px 0px 0px rgba(255,0,0,0.6)) drop-shadow(-4px 0px 0px rgba(0,0,255,0.6)); }
+        .heavy-glitch { animation: heavy-glitch-anim 0.2s infinite; filter: contrast(200%) saturate(200%) drop-shadow(5px 0px 0px red) drop-shadow(-5px 0px 0px blue) !important; }
+
+        @keyframes screen-glitch-anim { 0% { transform: translate(0) skew(0deg); } 20% { transform: translate(-5px, 3px) skew(-3deg); } 40% { transform: translate(5px, -3px) skew(3deg); } 60% { transform: translate(-3px, 5px) skew(-2deg); } 80% { transform: translate(3px, -5px) skew(2deg); } 100% { transform: translate(0) skew(0deg); } }
+        @keyframes heavy-glitch-anim { 0% { transform: translate(-10px, 5px) skew(5deg) scale(1.02); } 25% { transform: translate(10px, -5px) skew(-5deg) scale(0.98); } 50% { transform: translate(-5px, -10px) skew(10deg) scale(1.05); } 75% { transform: translate(5px, 10px) skew(-10deg) scale(0.95); } 100% { transform: translate(0) skew(0deg) scale(1); } }
+
+        .txt-red { color: var(--term-red) !important; text-shadow: 0 0 5px var(--term-red); font-weight: bold; }
+        .txt-yellow { color: var(--term-yellow); text-shadow: 0 0 5px var(--term-yellow); }
+        .txt-white { color: var(--term-white); text-shadow: 0 0 3px var(--term-white); }
+        .txt-blink { animation: blink 1s step-end infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* Ekran logowania */
+        #login-screen { position: absolute; z-index: 50; display: flex; flex-direction: column; align-items: center; width: 90%; max-width: 400px; padding: 30px; border: 1px solid var(--term-green); background: rgba(0,10,0,0.9); box-shadow: 0 0 20px rgba(74,246,38,0.2); border-radius: 8px; }
+        #login-screen h2 { margin-bottom: 20px; font-size: 1.4rem; text-align: center; letter-spacing: 2px; }
+        .input-group { width: 100%; margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 0.9rem; margin-bottom: 5px; color: var(--term-white); }
+        .input-group input { width: 100%; background: #000; border: 1px solid var(--term-green); color: var(--term-green); padding: 12px; font-family: inherit; font-size: 1.1rem; outline: none; text-shadow: 0 0 4px var(--term-green); }
+        .input-group input:focus { border-color: var(--term-yellow); box-shadow: 0 0 8px var(--term-yellow); }
+        
+        #login-btn { background: transparent; color: var(--term-green); border: 2px solid var(--term-green); padding: 12px; width: 100%; font-size: 1.1rem; font-family: inherit; cursor: pointer; text-transform: uppercase; letter-spacing: 3px; margin-top: 10px; transition: all 0.2s; box-shadow: 0 0 10px var(--term-green) inset; }
+        #login-btn:hover { background: var(--term-green); color: var(--term-dark); }
+        #login-error { color: var(--term-red); margin-top: 15px; font-size: 0.95rem; min-height: 20px; text-align: center; }
+
+        /* Terminal z profilem */
+        #terminal { display: none; width: 100%; max-width: 900px; height: 100vh; padding: 40px 20px; flex-direction: column; overflow-y: auto; overflow-x: hidden; z-index: 10; position: relative; font-size: 1.15rem; line-height: 1.6; text-shadow: 0 0 4px var(--term-green); }
+        #terminal::-webkit-scrollbar { width: 8px; } #terminal::-webkit-scrollbar-track { background: #000; } #terminal::-webkit-scrollbar-thumb { background: var(--term-dim); }
+
+        /* Karta profilowa w terminalu */
+        .profile-card { border: 1px dashed var(--term-green); padding: 20px; margin: 20px 0; background: rgba(74,246,38,0.02); display: flex; flex-direction: column; gap: 15px; opacity: 0; transition: opacity 0.5s ease-in; }
+        @media(min-width: 600px) { .profile-card { flex-direction: row; align-items: flex-start; } }
+        
+        /* Kontener na zdjęcie z efektem skanowania */
+        .avatar-container { width: 150px; height: 180px; border: 2px solid var(--term-green); background: #050505; flex-shrink: 0; position: relative; overflow: hidden; box-shadow: 0 0 10px var(--term-dim); }
+        .avatar-container img { width: 100%; height: 100%; object-fit: cover; filter: brightness(0.8) contrast(1.2) hue-rotate(10deg); transition: filter 1s ease; }
+        .scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: var(--term-green); box-shadow: 0 0 10px var(--term-green); display: none; z-index: 2; }
+        
+        .profile-info { flex-grow: 1; display: flex; flex-direction: column; gap: 8px; }
+        
+        .pdf-btn { background: #111; color: #fff; border: 1px solid #fff; padding: 12px 25px; font-family: inherit; font-size: 1rem; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; transition: 0.3s; margin-top: 10px; align-self: flex-start; }
+        .pdf-btn:hover { background: #fff; color: #000; box-shadow: 0 0 15px #fff; }
+    </style>
+</head>
+<body>
+    <div class="crt-overlay"></div>
+    <div class="crt-curve"></div>
+
+    <!-- EKRAN LOGOWANIA -->
+    <div id="login-screen">
+        <h2 class="txt-yellow">> AUTORYZACJA AGENTA <</h2>
+        <div class="input-group">
+            <label>IDENTYFIKATOR (LOGIN):</label>
+            <input type="text" id="login-user" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="input-group">
+            <label>KOD DOSTĘPU (HASŁO):</label>
+            <input type="password" id="login-pass" autocomplete="off">
+        </div>
+        <button id="login-btn" onclick="handleLogin()">ZALOGUJ DO SYSTEMU</button>
+        <div id="login-error"></div>
+    </div>
+
+    <!-- TERMINAL Z WYNIKIEM / PROFILEM -->
+    <div id="terminal">
+        <div id="output"></div>
+        <div id="cursor-anchor" style="height: 20px;"></div>
+    </div>
+
+    <script>
+        // BAZA DANYCH GRACZY
+        const PLAYERS_DATABASE = {
+            "szak": {
+                pass: "7392",
+                name: "Mateusz Szymczak",
+                role: "Śledczy",
+                status: "AKTYWNY",
+                avatar: "zdjecia/stas.jpg",
+                bio: "Młodszy funkcjonariusz pionu śledczego. Skupiony na wdrażaniu podstawowych procedur operacyjnych i adaptacji do realiów pracy w terenie pod nadzorem starszych inspektorów.",
+            },
+            "szimi": {
+                pass: "4815",
+                name: "Julia Szymańska",
+                role: "KRET",
+                status: "POSZUKIWANA",
+                avatar: "zdjecia/cela.jpg",
+                bio: "Profilerka kryminalna. Specjalizuje się w analizie zachowań psychologicznych podejrzanych, ocenie ryzyka oraz sporządzaniu profili sprawców na potrzeby trwających dochodzeń.",
+                secretMission: "Sabotaż misji. Podejmij ścisłą współpracę z Maciejem Dąbrowskim (drugi kret). Nie daj się wykryć"
+            },
+            "kamyk": {
+                pass: "9021",
+                name: "Kamil Wójcik",
+                role: "Śledczy",
+                status: "AKTYWNY",
+                avatar: "zdjecia/bondzix.jpg",
+                bio: "Funkcjonariusza operacyjny z wieloletnim stażem terenowym. Posiada szeroką sieć kontaktów informacyjnych i bogate doświadczenie w pracy pod przykrywką.",
+                
+            },
+            "dabek": {
+                pass: "3654",
+                name: "Maciej Dąbrowski",
+                role: "KRET",
+                status: "POSZUKIWANY",
+                avatar: "zdjecia/krzys.jpg",
+                bio: "Doświadczony inspektor wydziału kryminalnego. Skupia się na skrupulatnym dokumentowaniu materiału dowodowego oraz przestrzeganiu standardowych procedur śledczych.",
+                secretMission: "Sabotaż misji. Podejmij ścisłą współpracę z Julią Szymańską (drugi kret). Nie daj się wykryć"
+            },
+            "kwiatek": {
+                pass: "8240",
+                name: "Maja Kwiatkowska",
+                role: "Śledczy",
+                status: "AKTYWNY",
+                avatar: "zdjecia/agata.jpg",
+                bio: "Oficer śledcza odpowiedzialna za prowadzenie bezpośrednich przesłuchań i dynamiczne działania operacyjne na miejscu zdarzenia.",
+                
+            },
+            "kaczor": {
+                pass: "1593",
+                name: "Piotr Kaczmarek",
+                role: "Śledczy",
+                status: "AKTYWNY",
+                avatar: "zdjecia/mikolaj.jpg",
+                bio: "Specjalista ds. przestępczości gospodarczej i finansowej. Odpowiedzialny za analizę przepływów kapitałowych, dokumentacji księgowej oraz dokumentów urzędowych.",
+                
+            },
+            "jano": {
+                pass: "6728",
+                name: "Jan Nowak",
+                role: "Śledczy",
+                status: "AKTYWNY",
+                avatar: "zdjecia/kudlaty.jpg",
+                bio: "Technik kryminalistyki. Odpowiedzialny za zabezpieczanie śladów biologicznych, daktyloskopijnych oraz kompleksową obsługę techniczno-kryminalistyczną miejsc przestępstw.",
+                
+            },
+            "foxy": {
+                pass: "2904",
+                name: "Anna Lis",
+                role: "Śledczy",
+                status: "AKTYWNY",
+                avatar: "zdjecia/olivia.jpg",
+                bio: "Inspektor wydziału operacyjnego. Zajmuje się koordynacją działań interwencyjnych oraz bezpośrednią weryfikacją informacji w terenie.",
+                
+            }
+        };
+
+        const MISSION_LOCATION = "Gdańsk, Po Schodkach 22";
+        const MISSION_DATE = "Sobota, 31 Października 2026, godz. 19:00";
+
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+        function playSound(freq, type, duration, vol = 0.05) {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+
+        function triggerGlitch() {
+            document.body.classList.add('global-glitch');
+            setTimeout(() => document.body.classList.remove('global-glitch'), 150);
+        }
+
+        // Losowe lekkie glitchowanie w tle
+        setInterval(() => {
+            if (Math.random() > 0.85) triggerGlitch();
+        }, 3000);
+
+        const output = document.getElementById('output');
+        const terminal = document.getElementById('terminal');
+
+        function forceScroll() { terminal.scrollTop = terminal.scrollHeight; }
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        // Wolniejszy, czytelny Typewriter (prędkość zwiększona z 15 do 35ms)
+        function typeLine(htmlContent, speed = 35) {
+            return new Promise(resolve => {
+                const div = document.createElement('div');
+                div.style.marginBottom = '6px';
+                output.appendChild(div);
+
+                let i = 0;
+                let isTag = false;
+                let currentHTML = '';
+
+                function typeChar() {
+                    if (i < htmlContent.length) {
+                        let char = htmlContent.charAt(i);
+                        currentHTML += char;
+
+                        if (char === '<') isTag = true;
+                        if (char === '>') isTag = false;
+
+                        if (isTag) {
+                            i++; typeChar();
+                        } else {
+                            div.innerHTML = currentHTML;
+                            if (char !== ' ') playSound(140 + Math.random()*40, 'square', 0.02, 0.02);
+                            i++;
+                            forceScroll();
+                            setTimeout(typeChar, speed);
+                        }
+                    } else {
+                        resolve();
+                    }
+                }
+                typeChar();
+            });
+        }
+
+        // Skanowanie zdjęcia
+        async function animateAvatarScan(container, imageSrc) {
+            const img = container.querySelector('img');
+            const scanLine = container.querySelector('.scan-line');
+            
+            return new Promise((resolve) => {
+                img.src = imageSrc;
+                img.style.filter = 'blur(10px) brightness(0.2) contrast(200%)';
+                scanLine.style.display = 'block';
+
+                let topPos = 0;
+                const scanInterval = setInterval(() => {
+                    topPos += 4;
+                    scanLine.style.top = topPos + 'px';
+                    if(Math.random() > 0.7) playSound(500 + Math.random()*400, 'sine', 0.02, 0.02);
+                    
+                    if (topPos >= 180) {
+                        clearInterval(scanInterval);
+                        scanLine.style.display = 'none';
+                        img.style.filter = 'none';
+                        playSound(900, 'sine', 0.1, 0.05);
+                        resolve();
+                    }
+                }, 20);
+            });
+        }
+
+        // Obsługa logowania
+        async function handleLogin() {
+            initAudio();
+            const userInput = document.getElementById('login-user').value.trim().toLowerCase();
+            const passInput = document.getElementById('login-pass').value.trim();
+            const errorDiv = document.getElementById('login-error');
+
+            if (!userInput || !passInput) {
+                errorDiv.innerText = ">> WYPEŁNIJ WSZYSTKIE POLA <<";
+                playSound(80, 'sawtooth', 0.3, 0.2);
+                triggerGlitch();
+                return;
+            }
+
+            const player = PLAYERS_DATABASE[userInput];
+
+            if (player && player.pass === passInput) {
+                playSound(600, 'sine', 0.1, 0.1);
+                setTimeout(() => playSound(1200, 'sine', 0.2, 0.1), 100);
+                triggerGlitch();
+                
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('terminal').style.display = 'flex';
+
+                loadPlayerProfile(player);
+            } else {
+                playSound(80, 'sawtooth', 0.4, 0.3);
+                triggerGlitch();
+                errorDiv.innerText = ">> BŁĘDNY IDENTYFIKATOR LUB KOD DOSTĘPU <<";
+                document.getElementById('login-user').style.borderColor = 'var(--term-red)';
+                document.getElementById('login-pass').style.borderColor = 'var(--term-red)';
+            }
+        }
+
+        document.getElementById('login-pass').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleLogin();
+        });
+
+        // Ładowanie profilu
+        async function loadPlayerProfile(p) {
+            await typeLine("<span class='txt-yellow'>NAWIĄZANO BEZPIECZNE POŁĄCZENIE Z BAZĄ DANYCH...</span>", 25);
+            await typeLine("--------------------------------------------------", 10);
+            await typeLine(`ZIDENTYFIKOWANO AGENTA: <span class='txt-white'>${p.name.toUpperCase()}</span>`, 30);
+            await typeLine(`STATUS OPERACYJNY: <span class='txt-red'>${p.status}</span>`, 30);
+            await typeLine("--------------------------------------------------", 10);
+            await sleep(400);
+
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'profile-card';
+            cardDiv.innerHTML = `
+                <div class="avatar-container">
+                    <div class="scan-line"></div>
+                    <img alt="Zdjęcie agenta">
+                </div>
+                <div class="profile-info" id="profile-text-target"></div>
+            `;
+            output.appendChild(cardDiv);
+            forceScroll();
+
+            cardDiv.style.opacity = '1';
+
+            const avatarContainer = cardDiv.querySelector('.avatar-container');
+            const scanPromise = animateAvatarScan(avatarContainer, p.avatar);
+
+            const infoTarget = cardDiv.querySelector('#profile-text-target');
+            
+            const appendInfoLine = async (html) => {
+                const div = document.createElement('div');
+                infoTarget.appendChild(div);
+                let i = 0, isTag = false, currentHTML = '';
+                while (i < html.length) {
+                    let char = html.charAt(i);
+                    currentHTML += char;
+                    if (char === '<') isTag = true;
+                    if (char === '>') isTag = false;
+                    if (!isTag) {
+                        div.innerHTML = currentHTML;
+                        if (char !== ' ') playSound(150, 'square', 0.02, 0.02);
+                        await sleep(25); // Wolniejsze pisanie danych w karcie
+                    }
+                    i++;
+                }
+            };
+
+            await appendInfoLine(`<div><span class='txt-yellow'>IMIĘ I NAZWISKO:</span> <span class='txt-white'>${p.name}</span></div>`);
+            await appendInfoLine(`<div><span class='txt-yellow'>PRZYPISANA ROLA:</span> <span class='txt-red'>${p.role}</span></div>`);
+            await appendInfoLine(`<div><span class='txt-yellow'>CHARAKTERYSTYKA:</span> ${p.bio}</div>`);
+            await appendInfoLine(`<div style="margin-top: 10px; border-top: 1px dashed var(--term-dim); padding-top: 8px;"><span class='txt-yellow'>TAJNE WYTYCZNE:</span> <span class='txt-white'>${p.secretMission}</span></div>`);
+
+            await scanPromise;
+
+            await sleep(400);
+            await typeLine("<br><span class='txt-yellow'>SZCZEGÓŁY OPERACJI [KRUK]:</span>", 30);
+            await typeLine("------------------------------------------", 10);
+            await typeLine(`LOKALIZACJA: <span class='txt-white'>${MISSION_LOCATION}</span>`, 30);
+            await typeLine(`CZAS AKCJI: <span class='txt-white'>${MISSION_DATE}</span>`, 30);
+            await typeLine("<br><span class='txt-yellow'>WYTYCZNE OGÓLNE:</span>", 30);
+            await typeLine("> Ubiór ciepły / przebranie cywilne (nie rzucaj się w oczy).", 20);
+            await typeLine("> Obuwie sportowe / taktyczne (będziemy w terenie).", 20);
+            await typeLine("> Ekwipunek: Kamizelki odblaskowe (dostępne na terenie).<br>", 20);
+
+            // Przycisk PDF
+            const btnPdf = document.createElement('button');
+            btnPdf.className = 'pdf-btn';
+            btnPdf.innerText = 'POBIERZ AKTA OPERACYJNE (PDF)';
+            btnPdf.onclick = () => generatePDF(p);
+            output.appendChild(btnPdf);
+
+            // Przycisk Wylogowania
+            const btnLogout = document.createElement('button');
+            btnLogout.className = 'pdf-btn';
+            btnLogout.style.marginTop = '10px';
+            btnLogout.style.borderColor = 'var(--term-red)';
+            btnLogout.style.color = 'var(--term-red)';
+            btnLogout.innerText = 'WYLOGUJ / ZMIEŃ AGENTA';
+            btnLogout.onclick = () => {
+                output.innerHTML = '';
+                terminal.style.display = 'none';
+                document.getElementById('login-user').value = '';
+                document.getElementById('login-pass').value = '';
+                document.getElementById('login-error').innerText = '';
+                document.getElementById('login-screen').style.display = 'flex';
+            };
+            output.appendChild(btnLogout);
+            
+            forceScroll();
+        }
+
+        // Generowanie PDF
+        function generatePDF(p) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFillColor(10, 10, 10);
+            doc.rect(0, 0, 210, 297, 'F');
+
+            doc.setTextColor(74, 246, 38);
+            doc.setFont("courier", "bold");
+            doc.setFontSize(18);
+            doc.text("WYDZIAŁ ŚLEDCZY - AKTA OPERACYJNE", 20, 25);
+
+            doc.setFontSize(11);
+            doc.setTextColor(220, 220, 220);
+            doc.text(`WYGENEROWANO DLA: ${p.name.toUpperCase()}`, 20, 35);
+            doc.text(`ROLA W OPERACJI: ${p.role}`, 20, 42);
+            doc.text(`STATUS: ${p.status}`, 20, 49);
+
+            doc.setDraw(74, 246, 38);
+            doc.line(20, 55, 190, 55);
+
+            doc.text("CHARAKTERYSTYKA POSTACI:", 20, 65);
+            doc.setFont("courier", "normal");
+            doc.text(doc.splitTextToSize(p.bio, 170), 20, 73);
+
+            doc.setFont("courier", "bold");
+            doc.text("TAJNE WYTYCZNE DLA GRACZA:", 20, 100);
+            doc.setFont("courier", "normal");
+            doc.text(doc.splitTextToSize(p.secretMission, 170), 20, 108);
+
+            doc.setFont("courier", "bold");
+            doc.text("DANE LOKALIZACYJNE:", 20, 135);
+            doc.text(`Miejsce: ${MISSION_LOCATION}`, 20, 143);
+            doc.text(`Czas: ${MISSION_DATE}`, 20, 150);
+
+            doc.setFontSize(9);
+            doc.setTextColor(150, 150, 150);
+            doc.text("Dokument poufny. Wytworzony na potrzeby gry terenowej.", 20, 280);
+
+            doc.save(`Akta_${p.name.replace(/\s+/g, '_')}.pdf`);
+        }
+    </script>
+</body>
+</html>
