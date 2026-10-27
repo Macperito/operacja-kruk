@@ -412,6 +412,11 @@
 
         // Generowanie PDF
         function generatePDF(p) {
+            if (!window.jspdf) {
+                alert("Biblioteka PDF nie została jeszcze załadowana.");
+                return;
+            }
+            
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
@@ -436,15 +441,17 @@
             doc.setFont("courier", "normal");
             doc.text(doc.splitTextToSize(p.bio, 170), 20, 73);
 
-            doc.setFont("courier", "bold");
-            doc.text("TAJNE WYTYCZNE DLA GRACZA:", 20, 100);
-            doc.setFont("courier", "normal");
-            doc.text(doc.splitTextToSize(p.secretMission, 170), 20, 108);
+            if (p.secretMission) {
+                doc.setFont("courier", "bold");
+                doc.text("TAJNE WYTYCZNE DLA GRACZA:", 20, 105);
+                doc.setFont("courier", "normal");
+                doc.text(doc.splitTextToSize(p.secretMission, 170), 20, 113);
+            }
 
             doc.setFont("courier", "bold");
-            doc.text("DANE LOKALIZACYJNE:", 20, 135);
-            doc.text(`Miejsce: ${MISSION_LOCATION}`, 20, 143);
-            doc.text(`Czas: ${MISSION_DATE}`, 20, 150);
+            doc.text("DANE LOKALIZACYJNE:", 20, 145);
+            doc.text(`Miejsce: ${MISSION_LOCATION}`, 20, 153);
+            doc.text(`Czas: ${MISSION_DATE}`, 20, 160);
 
             doc.setFontSize(9);
             doc.setTextColor(150, 150, 150);
